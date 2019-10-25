@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/internal/fields"
@@ -256,7 +257,7 @@ type tagOptions struct {
 
 // parseTag interprets firestore struct field tags.
 func parseTag(t reflect.StructTag) (name string, keep bool, other interface{}, err error) {
-	name, keep, opts, err := fields.ParseStandardTag("firestore", t)
+	name, keep, opts, err := parseProtobufTag("protobuf", t)
 	if err != nil {
 		return "", false, nil, fmt.Errorf("firestore: %v", err)
 	}
@@ -272,6 +273,22 @@ func parseTag(t reflect.StructTag) (name string, keep bool, other interface{}, e
 		}
 	}
 	return name, keep, tagOpts, nil
+}
+
+func parseProtobufTag(key string, t reflect.StructTag) (name string, keep bool, options []string, err error) {
+	s := t.Get(key)
+	parts := strings.Split(s, ",")
+	if len(parts) <= 0 || parts[0] == "-" {
+		if len(parts) > 1 {
+			return "", false, nil, errors.New(`"-" field tag with options`)
+		}
+		return "", false, nil, nil
+	}
+	if len(parts) >= 5 && strings.HasPrefix(parts[4], "json=") {
+		name := strings.TrimPrefix(parts[4], "json=")
+		return name, true, nil, nil
+	}
+	return fields.ParseStandardTag("json", t)
 }
 
 // isLeafType determines whether or not a type is a 'leaf type'
